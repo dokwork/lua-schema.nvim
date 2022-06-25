@@ -25,8 +25,6 @@ require('packer').startup(function(use)
     use('wbthomason/packer.nvim')
     use({
         'lua-schema.nvim',
-        requires = {
-        },
     })
 end)
 
