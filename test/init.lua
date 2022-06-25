@@ -33,5 +33,4 @@ if packer_bootstrap then
     print('Please, restart nvim to use installed plugins.')
 else
     -- Configuration for test:
-
 end
