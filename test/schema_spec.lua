@@ -1,6 +1,6 @@
 local s = require('lua-schema')
 
-describe('validation the schema', function()
+describe('validation of the schema', function()
     it('should be passed for every type', function()
         assert(s.validate(s.const, s.type()), 'Wrong schema for the const')
         assert(s.validate(s.list(), s.type()), 'Wrong schema for the list')
@@ -81,7 +81,7 @@ describe('validation the schema', function()
             local ok, err = s.validate({ 1, 2, 3 }, schema)
 
             -- then:
-            assert(ok, tostring(err))
+            assert(ok, err)
         end)
 
         it('should be passed for empty list', function()
@@ -100,9 +100,8 @@ describe('validation the schema', function()
             local ok, err = s.validate({}, schema)
 
             -- then:
+            print(err)
             assert(not ok)
-            assert.are.same({}, err.object)
-            assert.are.same(schema, err.schema)
         end)
 
         it('should be failed for list with element with wrong type', function()
@@ -113,9 +112,8 @@ describe('validation the schema', function()
             local ok, err = s.validate({ 1, 2, '3' }, schema)
 
             -- then:
+            print(err)
             assert(not ok)
-            assert.are.same({ 1, 2, '3' }, err.object)
-            assert.are.same(schema, err.schema)
         end)
     end)
 
@@ -124,11 +122,8 @@ describe('validation the schema', function()
             -- given:
             local schema = { table = { key = 'string', value = 'string' } }
 
-            -- when:
-            local ok, err = s.validate({ a = 'b' }, schema)
-
             -- then:
-            assert(ok, tostring(err))
+            assert(s.validate({ a = 'b' }, schema))
         end)
 
         it('should validate type of keys', function()
@@ -147,9 +142,8 @@ describe('validation the schema', function()
             local ok, err = s.validate({ a = 'str' }, schema)
 
             -- then:
+            print(err)
             assert(not ok)
-            assert.are.same({ a = 'str' }, err.object)
-            assert.are.same({ table = { { key = 'string', value = 'number' } } }, err.schema)
         end)
 
         it('should support oneof as a type of keys', function()
@@ -175,7 +169,7 @@ describe('validation the schema', function()
             local ok, err = s.validate({ c = true }, schema)
 
             -- then:
-            assert(ok, tostring(err))
+            assert(ok, err)
         end)
 
         it('should not be passed when required oneof was not satisfied', function()
@@ -191,12 +185,8 @@ describe('validation the schema', function()
             local ok, err = s.validate({ c = true }, schema)
 
             -- then:
+            print(err)
             assert(not ok)
-
-            assert.are.same({ c = '?' }, err.object)
-            assert.are.same({
-                table = { { key = { oneof = { 'a', 'b' } } } },
-            }, err.schema)
         end)
 
         it('should support oneof as a type of values', function()
@@ -222,7 +212,7 @@ describe('validation the schema', function()
             local ok, err = s.validate({ a = 1, b = true }, schema)
 
             -- then:
-            assert(ok, tostring(err))
+            assert(ok, err)
             assert(not s.validate({ a = 'str', b = true }, schema))
             assert(not s.validate({ a = 1, b = 1 }, schema))
         end)
@@ -266,7 +256,7 @@ describe('validation the schema', function()
             local ok, err = s.validate({ a = 1, str = true }, schema)
 
             -- then:
-            assert(ok, tostring(err))
+            assert(ok, err)
         end)
 
         it('should support table as a value', function()
@@ -286,7 +276,7 @@ describe('validation the schema', function()
             local ok, err = s.validate({ a = { b = 1 } }, schema)
 
             -- then:
-            assert(ok, tostring(err))
+            assert(ok, err)
         end)
 
         it('should correctly compose error for nested tables', function()
@@ -306,12 +296,8 @@ describe('validation the schema', function()
             local ok, err = s.validate({ a = { c = 1 } }, schema)
 
             -- then:
+            print(err)
             assert(not ok)
-            assert.are.same({ a = { c = '?' } }, err.object)
-            assert.are.same(
-                { table = { { key = 'a', value = { table = { { key = 'b' } } } } } },
-                err.schema
-            )
         end)
     end)
 end)
