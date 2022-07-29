@@ -89,8 +89,7 @@ M.name_of_type = function(typ)
         return typ
     end
     if type(typ) == 'table' then
-        local typ = next(typ)
-        return typ
+        return next(typ)
     end
     if M.is_const(typ) then
         return string.format('const `%s`', typ)
