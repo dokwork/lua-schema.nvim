@@ -100,7 +100,7 @@ describe('validation of the schema', function()
             local ok, err = s.validate({}, schema)
 
             -- then:
-            print(err)
+            print(tostring(err))
             assert(not ok)
         end)
 
@@ -112,7 +112,7 @@ describe('validation of the schema', function()
             local ok, err = s.validate({ 1, 2, '3' }, schema)
 
             -- then:
-            print(err)
+            print(tostring(err))
             assert(not ok)
         end)
     end)
@@ -142,7 +142,7 @@ describe('validation of the schema', function()
             local ok, err = s.validate({ a = 'str' }, schema)
 
             -- then:
-            print(err)
+            print(tostring(err))
             assert(not ok)
         end)
 
@@ -185,7 +185,7 @@ describe('validation of the schema', function()
             local ok, err = s.validate({ c = true }, schema)
 
             -- then:
-            print(err)
+            print(tostring(err))
             assert(not ok)
         end)
 
@@ -296,7 +296,7 @@ describe('validation of the schema', function()
             local ok, err = s.validate({ a = { c = 1 } }, schema)
 
             -- then:
-            print(err)
+            print(tostring(err))
             assert(not ok)
         end)
     end)
