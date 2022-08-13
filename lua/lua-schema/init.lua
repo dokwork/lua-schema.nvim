@@ -184,84 +184,135 @@ M.name_of_type = function(t)
     return nil, 'Unsupported type ' .. vim.inspect(t)
 end
 
-local function wrong_type(expected_type, obj)
-    return string.format(
-        'Wrong type. Expected <%s>, but actual was <%s>.',
-        M.name_of_type(expected_type),
-        type(obj)
+local Stacktrace = {}
+
+Stacktrace.new = function()
+    local x = {}
+    setmetatable(x, {
+        __index = Stacktrace,
+        __tostring = function(t)
+            local result = 'Stacktrace:'
+            for i, err in ipairs(t) do
+                result = string.format('%s\n[%d] %s', result, i, err)
+            end
+            return result
+        end,
+    })
+    return x
+end
+
+function Stacktrace:wrong_type(expected_type, obj)
+    table.insert(
+        self,
+        string.format(
+            'Wrong type. Expected <%s>, but actual was <%s>.',
+            M.name_of_type(expected_type),
+            type(obj)
+        )
     )
+    return self
 end
 
-local function wrong_type_in_schema(type_name, schema)
-    return string.format('Unknown type `%s` in the schema: %s', type_name, vim.inspect(schema))
-end
-
-local function wrong_value(expected, actual)
-    return string.format('Wrong value "%s". Expected "%s".', tostring(actual), tostring(expected))
-end
-
-local function wrong_oneof(value, options)
-    return string.format(
-        'Wrong oneof value: %s. Expected values %s.',
-        vim.inspect(value),
-        vim.inspect(options)
+function Stacktrace:wrong_type_in_schema(type_name, schema)
+    table.insert(
+        self,
+        string.format('Unknown type `%s` in the schema: %s', type_name, vim.inspect(schema))
     )
+    return self
 end
 
-local function empty_list_of(el_type)
-    return string.format('No one element in the none empty list of %s', M.name_of_type(el_type))
-end
-
-local function wrong_kv_types_schema(kv_types)
-    return string.format(
-        "Wrong schema. It should have description for 'key' and 'value', but it doesn't: `%s`",
-        vim.inspect(kv_types)
+function Stacktrace:wrong_value(expected, actual)
+    table.insert(
+        self,
+        string.format('Wrong value "%s". Expected "%s".', tostring(actual), tostring(expected))
     )
+    return self
 end
 
-local function wrong_schema_of(typ, type_schema)
-    return string.format(
-        'Wrong schema of the %s. Expected table, but was %s.',
-        typ,
-        type(type_schema)
+function Stacktrace:wrong_oneof(value, options)
+    table.insert(
+        self,
+        string.format(
+            'Wrong oneof value: %s. Expected values %s.',
+            vim.inspect(value),
+            vim.inspect(options)
+        )
     )
+    return self
 end
 
-local function required_key_not_found(kv_types, orig_table)
-    return string.format(
-        'Required key `%s` was not found.\nKeys in the original table were:\n%s',
-        vim.inspect(kv_types.key),
-        vim.inspect(vim.tbl_keys(orig_table))
+function Stacktrace:empty_list_of(el_type)
+    table.insert(
+        self,
+        string.format('No one element in the none empty list of %s', M.name_of_type(el_type))
     )
+    return self
 end
 
-local function required_pair_not_found(kv_types, orig_table)
-    return string.format(
-        'Required pair with key = `%s` and value = `%s` was not found.\nOriginal table was:\n%s',
-        vim.inspect(kv_types.key),
-        vim.inspect(kv_types.value),
-        vim.inspect(orig_table)
+function Stacktrace:wrong_kv_types_schema(kv_types)
+    table.insert(
+        self,
+        string.format(
+            "Wrong schema. It should have description for 'key' and 'value', but it doesn't: `%s`",
+            vim.inspect(kv_types)
+        )
     )
+    return self
 end
 
-local function validate_const(value, schema)
+function Stacktrace:wrong_schema_of(typ, type_schema)
+    table.insert(
+        self,
+        string.format('Wrong schema of the %s. Expected table, but was %s.', typ, type(type_schema))
+    )
+    return self
+end
+
+function Stacktrace:required_key_not_found(kv_types, orig_table)
+    table.insert(
+        self,
+        string.format(
+            'Required key `%s` was not found.\nKeys in the original table were:\n%s',
+            vim.inspect(kv_types.key),
+            vim.inspect(vim.tbl_keys(orig_table))
+        )
+    )
+    return self
+end
+
+function Stacktrace:required_pair_not_found(kv_types, orig_table)
+    table.insert(
+        self,
+        string.format(
+            'Required pair with key = `%s` and value = `%s` was not found.\nOriginal table was:\n%s',
+            vim.inspect(kv_types.key),
+            vim.inspect(kv_types.value),
+            vim.inspect(orig_table)
+        )
+    )
+    return self
+end
+
+-- Validators --
+
+local function validate_const(value, schema, stacktrace)
     if value ~= schema then
-        return false, wrong_value(schema, value)
+        return false, stacktrace:wrong_value(schema, value)
     end
     return true
 end
 
-local function validate_list(list, el_type, non_empty)
+local function validate_list(list, el_type, non_empty, stacktrace)
     if type(list) ~= 'table' then
-        return false, wrong_type('table', list)
+        return false, stacktrace:wrong_type('table', list)
     end
 
     if non_empty and #list == 0 then
-        return false, empty_list_of(el_type)
+        return false, stacktrace:empty_list_of(el_type)
     end
 
     for i, el in ipairs(list) do
-        local _, err = M.validate(el, el_type)
+        local _, err = M.validate(el, el_type, stacktrace)
         if err then
             return false, err
         end
@@ -269,25 +320,25 @@ local function validate_list(list, el_type, non_empty)
     return true
 end
 
-local function validate_oneof(value, options)
+local function validate_oneof(value, options, stacktrace)
     if type(options) ~= 'table' then
-        return nil, wrong_schema_of('oneof', options)
+        return nil, stacktrace:wrong_schema_of('oneof', options)
     end
     for _, opt in ipairs(options) do
-        if M.validate(value, opt) then
+        if M.validate(value, opt, stacktrace) then
             return true
         end
     end
-    return false, wrong_oneof(value, options)
+    return false, stacktrace:wrong_oneof(value, options)
 end
 
-local function validate_table(orig_tbl, kvs_schema)
+local function validate_table(orig_tbl, kvs_schema, stacktrace)
     if type(kvs_schema) ~= 'table' then
-        return false, wrong_schema_of('table', kvs_schema)
+        return false, stacktrace:wrong_schema_of('table', kvs_schema)
     end
 
     if type(orig_tbl) ~= 'table' then
-        return false, wrong_type('table', orig_tbl)
+        return false, stacktrace:wrong_type('table', orig_tbl)
     end
 
     local function split_list(list)
@@ -305,18 +356,18 @@ local function validate_table(orig_tbl, kvs_schema)
 
     local function validate_key_value(unvalidated_tbl, kv_types, is_strict)
         if not (kv_types.key and kv_types.value) then
-            return false, wrong_kv_types_schema(kv_types)
+            return false, stacktrace:wrong_kv_types_schema(kv_types)
         end
 
         local at_least_one_key_passed = false
         local at_least_one_pair_passed = false
 
         for k, v in pairs(unvalidated_tbl) do
-            local _, err = M.validate(k, kv_types.key)
+            local _, err = M.validate(k, kv_types.key, stacktrace)
             if not err then
                 at_least_one_key_passed = true
 
-                _, err = M.validate(v, kv_types.value)
+                _, err = M.validate(v, kv_types.value, stacktrace)
                 -- if key is valid, but value is not,
                 -- then validation must be failed regadles of is_strict
                 if err then
@@ -336,11 +387,11 @@ local function validate_table(orig_tbl, kvs_schema)
         end
 
         if is_strict and not at_least_one_key_passed then
-            return false, required_key_not_found(kv_types, unvalidated_tbl)
+            return false, stacktrace:required_key_not_found(kv_types, unvalidated_tbl)
         end
 
         if is_strict and not at_least_one_pair_passed then
-            return false, required_pair_not_found(kv_types, unvalidated_tbl)
+            return false, stacktrace:required_pair_not_found(kv_types, unvalidated_tbl)
         end
 
         return true
@@ -373,7 +424,8 @@ end
 ---@type fun(object: any, schema: table)
 --- Checks that the {object} is sutisfied to the {schema}.
 ---@return boolean, string? # only true in successful case, or false and error message.
-M.validate = function(object, schema)
+M.validate = function(object, schema, stacktrace)
+    local stacktrace = stacktrace or Stacktrace.new()
     local type_name, type_schema, type_value
     if type(schema) == 'function' then
         return M.validate(object, schema())
@@ -390,25 +442,25 @@ M.validate = function(object, schema)
     end
 
     if type_name == 'table' then
-        return validate_table(object, type_schema)
+        return validate_table(object, type_schema, stacktrace)
     end
     if type_name == 'oneof' then
-        return validate_oneof(object, type_schema)
+        return validate_oneof(object, type_schema, stacktrace)
     end
     if type_name == 'list' or type_name == 'non_empty' then
-        return validate_list(object, schema.list, schema.non_empty)
+        return validate_list(object, schema.list, schema.non_empty, stacktrace)
     end
     if type_name == 'const' then
-        return validate_const(object, type_value)
+        return validate_const(object, type_value, stacktrace)
     end
 
     if not M.is_primitive(type_name) then
-        return false, wrong_type_in_schema(type_name, schema)
+        return false, stacktrace:wrong_type_in_schema(type_name, schema)
     end
     -- flat constants or primitives
     local ok = type(object) == type_name or object == type_value
     if not ok then
-        return false, wrong_type(type_name, object)
+        return false, stacktrace:wrong_type(type_name, object)
     end
     return true
 end
